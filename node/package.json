@@ -1,0 +1,24 @@
+{
+  "name": "@shelfkeeper/tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Text statistics helpers and CLI for Shelfkeeper",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "22.20.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
+}
