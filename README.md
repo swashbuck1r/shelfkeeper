@@ -23,6 +23,8 @@ Dockerfile           multi-stage build of the Go service on a distroless base
 
 ## Build and test
 
+`ci/bench.sh` runs the full build-and-test sequence the way CI does.
+
 Go (1.26):
 
 ```sh
