@@ -1,0 +1,39 @@
+name: ci
+run-name: ci ${{ inputs.run_id || github.ref_name }}
+
+on:
+  push:
+    branches:
+      - 'bench/gha-hosted/**'
+      - 'bench/depot/**'
+      - 'bench/blacksmith/**'
+      - 'bench/all/**'
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Identifier printed in every CIBENCH line
+        type: string
+        required: true
+      runs_on:
+        description: Runner label
+        type: string
+        default: ubuntu-latest
+      result_url:
+        description: Optional URL the captured log is PUT to
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runs_on || (startsWith(github.ref_name, 'bench/depot/') && 'depot-ubuntu-24.04-4') || (startsWith(github.ref_name, 'bench/blacksmith/') && 'blacksmith-4vcpu-ubuntu-2404') || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: build
+        env:
+          CIBENCH_RUN_ID: ${{ inputs.run_id || github.ref_name }}
+          CIBENCH_RESULT_URL: ${{ inputs.result_url }}
+        run: CIBENCH_RUN_ID="${CIBENCH_RUN_ID##*/}" ./ci/bench.sh
