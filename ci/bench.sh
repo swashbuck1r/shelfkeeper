@@ -136,12 +136,14 @@ step_fetch_toolchain() (
   fi
 
   if [ "${node_have}" != "${node_want}" ]; then
-    local node_url="https://nodejs.org/dist/v${node_want}/node-v${node_want}-linux-${nodearch}.tar.xz"
-    curl -fsSL "${node_url}" -o .toolchain/node.tar.xz
+    # .tar.gz, not .tar.xz: the workload contract requires tar+gzip only, and images such as
+    # buildpack-deps:noble-scm ship no xz.
+    local node_url="https://nodejs.org/dist/v${node_want}/node-v${node_want}-linux-${nodearch}.tar.gz"
+    curl -fsSL "${node_url}" -o .toolchain/node.tar.gz
     rm -rf .toolchain/node
     mkdir -p .toolchain/node
-    tar -C .toolchain/node --strip-components=1 -xJf .toolchain/node.tar.xz
-    rm -f .toolchain/node.tar.xz
+    tar -C .toolchain/node --strip-components=1 -xzf .toolchain/node.tar.gz
+    rm -f .toolchain/node.tar.gz
   fi
 )
 
