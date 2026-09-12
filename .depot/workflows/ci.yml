@@ -8,9 +8,7 @@ run-name: ci ${{ inputs.run_id || github.ref_name }}
 on:
   push:
     branches:
-      - 'bench/gha-hosted/**'
-      - 'bench/depot/**'
-      - 'bench/blacksmith/**'
+      - 'bench/depot-wf/**'
       - 'bench/all/**'
   workflow_dispatch:
     inputs:
