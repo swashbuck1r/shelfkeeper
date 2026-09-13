@@ -1,0 +1,29 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: ci-dispatch
+
+# API/manually triggered build; the push-triggered variant is ci.yaml. Kept separate because
+# `inputs` is undefined on push events, so one file cannot serve both triggers.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        type: string
+        default: ''
+      result_url:
+        type: string
+        default: ''
+
+jobs:
+  build:
+    timeout-minutes: 30
+    steps:
+      - uses: https://github.com/cloudbees-io/checkout@caf1644f1bd9fdc807b124078470c4407fc0075f # v2.2
+      - name: build
+        uses: docker://buildpack-deps:noble-scm@sha256:8d9e6fd4c0c302d5e572914da14bd6b2c8bc536a4559ef2cc5efd94e8ea59caa
+        shell: bash
+        env:
+          CIBENCH_RUN_ID_INPUT: ${{ inputs.run_id }}
+          CIBENCH_RESULT_URL: ${{ inputs.result_url }}
+        run: |
+          CIBENCH_RUN_ID="${CIBENCH_RUN_ID_INPUT}" ./ci/bench.sh

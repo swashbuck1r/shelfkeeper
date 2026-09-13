@@ -2,19 +2,13 @@ apiVersion: automation.cloudbees.io/v1alpha1
 kind: workflow
 name: ci
 
+# Push-triggered build. The manually/API-triggered variant lives in ci-dispatch.yaml because
+# the `inputs` context is undefined on push events and any reference to it fails evaluation.
 on:
   push:
     branches:
       - 'bench/unify/**'
       - 'bench/all/**'
-  workflow_dispatch:
-    inputs:
-      run_id:
-        type: string
-        default: ''
-      result_url:
-        type: string
-        default: ''
 
 jobs:
   build:
@@ -25,8 +19,6 @@ jobs:
         uses: docker://buildpack-deps:noble-scm@sha256:8d9e6fd4c0c302d5e572914da14bd6b2c8bc536a4559ef2cc5efd94e8ea59caa
         shell: bash
         env:
-          CIBENCH_RUN_ID_INPUT: ${{ inputs.run_id }}
           CIBENCH_BRANCH: ${{ cloudbees.scm.branch }}
-          CIBENCH_RESULT_URL: ${{ inputs.result_url }}
         run: |
-          CIBENCH_RUN_ID="${CIBENCH_RUN_ID_INPUT:-${CIBENCH_BRANCH##*/}}" ./ci/bench.sh
+          CIBENCH_RUN_ID="${CIBENCH_BRANCH##*/}" ./ci/bench.sh
