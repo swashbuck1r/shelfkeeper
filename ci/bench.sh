@@ -78,6 +78,59 @@ read_steal_total() {
   }' /proc/stat
 }
 
+cgroup_cpu_max() {
+  if [ -r /sys/fs/cgroup/cpu.max ]; then
+    cat /sys/fs/cgroup/cpu.max
+    return
+  fi
+  if [ -r /sys/fs/cgroup/cpu/cpu.cfs_quota_us ] && [ -r /sys/fs/cgroup/cpu/cpu.cfs_period_us ]; then
+    echo "$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us) $(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)"
+    return
+  fi
+  echo "unavailable"
+}
+
+cgroup_mem_max() {
+  if [ -r /sys/fs/cgroup/memory.max ]; then
+    cat /sys/fs/cgroup/memory.max
+    return
+  fi
+  if [ -r /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+    cat /sys/fs/cgroup/memory/memory.limit_in_bytes
+    return
+  fi
+  echo "unavailable"
+}
+
+effective_vcpus() {
+  local n quota period cap
+  n=$(nproc)
+  read -r quota period < <(cgroup_cpu_max)
+  case "${quota}" in
+    ''|max|unavailable) echo "${n}"; return ;;
+  esac
+  if [ "${quota}" = "-1" ] || [ -z "${period}" ]; then
+    echo "${n}"
+    return
+  fi
+  case "${quota}" in
+    ''|*[!0-9]*) echo "${n}"; return ;;
+  esac
+  case "${period}" in
+    ''|*[!0-9]*) echo "${n}"; return ;;
+  esac
+  if [ "${period}" -le 0 ]; then
+    echo "${n}"
+    return
+  fi
+  cap=$(( (quota + period - 1) / period ))
+  if [ "${cap}" -lt "${n}" ]; then
+    echo "${cap}"
+  else
+    echo "${n}"
+  fi
+}
+
 # ---- fetch-toolchain -------------------------------------------------------
 
 detect_arch() {
@@ -203,7 +256,7 @@ micro_cpu() (
   echo "CIBENCH-MICRO ${RUN_ID} cpu_single_ns=${single_ns}"
 
   local n multi_start multi_end multi_ns
-  n=$(nproc)
+  n=$(effective_vcpus)
   multi_start=$(date +%s%N)
   seq 1 "${n}" | xargs -P "${n}" -I{} bash -c "head -c ${size} /dev/zero | sha256sum >/dev/null"
   multi_end=$(date +%s%N)
@@ -312,7 +365,10 @@ main() {
 
   fp "arch" "$(detect_arch)"
   fp "cpu_model" "$(cpu_model)"
-  fp "vcpus" "$(nproc)"
+  fp "vcpus" "$(effective_vcpus)"
+  fp "host_vcpus" "$(nproc)"
+  fp "cgroup_cpu_max" "$(cgroup_cpu_max)"
+  fp "cgroup_mem_max" "$(cgroup_mem_max)"
   fp "mem_bytes" "$(awk '/^MemTotal:/ {print $2 * 1024}' /proc/meminfo)"
   fp "kernel" "$(uname -r)"
   fp "os_image" "$( { [ -f /etc/os-release ] && awk -F= '/^PRETTY_NAME=/ {gsub(/"/, "", $2); print $2}' /etc/os-release; } || uname -s)"
