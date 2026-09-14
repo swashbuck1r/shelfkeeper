@@ -1,7 +1,8 @@
 # Depot CI Migration
 # Source: .github/workflows/ci.yml
 #
-# No changes were necessary.
+# Diverges from the source: runs-on defaults to Depot CI's 4 CPU sandbox
+# (plain ubuntu-latest maps to the 2 CPU sandbox here).
 
 name: ci
 run-name: ci ${{ inputs.run_id || github.ref_name }}
@@ -19,7 +20,7 @@ on:
       runs_on:
         description: Runner label
         type: string
-        default: ubuntu-latest
+        default: depot-ubuntu-24.04-4
       result_url:
         description: Optional URL the captured log is PUT to
         type: string
@@ -28,7 +29,7 @@ permissions:
   contents: read
 jobs:
   build:
-    runs-on: ${{ inputs.runs_on || (startsWith(github.ref_name, 'bench/depot/') && 'depot-ubuntu-24.04-4') || (startsWith(github.ref_name, 'bench/blacksmith/') && 'blacksmith-4vcpu-ubuntu-2404') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runs_on || 'depot-ubuntu-24.04-4' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
