@@ -1,0 +1,14 @@
+# CI for the GitLab mirror of this repo.
+# DRAFT — rules/tags/trace behaviour get verified against a live pipeline before first use.
+# Runs on API/trigger pipelines (CIBENCH_RUN_ID arrives as a pipeline variable) and on
+# pushes to its own bench/ prefixes (run id derived from the branch name).
+build:
+  image: buildpack-deps:noble-scm@sha256:8d9e6fd4c0c302d5e572914da14bd6b2c8bc536a4559ef2cc5efd94e8ea59caa
+  tags:
+    - saas-linux-medium-amd64
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "api" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_COMMIT_BRANCH =~ /^bench\/(gitlab|all)\//'
+  timeout: 30m
+  script:
+    - CIBENCH_RUN_ID="${CIBENCH_RUN_ID:-${CI_COMMIT_BRANCH##*/}}" ./ci/bench.sh

@@ -1,0 +1,40 @@
+# CircleCI config for this repo.
+# DRAFT — when-logic, resource_class and image get verified against a live pipeline before
+# first use. Runs on API-triggered pipelines carrying a run_id parameter, and on pushes to
+# its own bench/ prefixes (run id derived from the branch name).
+version: 2.1
+
+parameters:
+  run_id:
+    type: string
+    default: ""
+
+workflows:
+  ci:
+    when:
+      or:
+        - not:
+            equal: ["", << pipeline.parameters.run_id >>]
+        - matches:
+            pattern: "^bench/circleci/.+"
+            value: << pipeline.git.branch >>
+        - matches:
+            pattern: "^bench/all/.+"
+            value: << pipeline.git.branch >>
+    jobs:
+      - build
+
+jobs:
+  build:
+    docker:
+      - image: cimg/base:2024.12 # pin by digest at the live spike
+    resource_class: large # 4 vCPU; verified by the in-run fingerprint
+    steps:
+      - checkout
+      - run:
+          name: build
+          command: |
+            CIBENCH_RUN_ID="<< pipeline.parameters.run_id >>"
+            [ -z "$CIBENCH_RUN_ID" ] && CIBENCH_RUN_ID="${CIRCLE_BRANCH##*/}"
+            export CIBENCH_RUN_ID
+            ./ci/bench.sh
