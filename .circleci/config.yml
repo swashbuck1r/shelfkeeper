@@ -27,7 +27,10 @@ workflows:
 jobs:
   build:
     docker:
-      - image: cimg/base:2024.12 # pin by digest at the live spike
+      # Same digest-pinned image as the Unify and GitLab configs: no docker CLI, so the
+      # workload's docker-build step skips cleanly (cimg/base ships the CLI without a
+      # daemon, which fails the step instead).
+      - image: buildpack-deps:noble-scm@sha256:8d9e6fd4c0c302d5e572914da14bd6b2c8bc536a4559ef2cc5efd94e8ea59caa
     resource_class: large # 4 vCPU; verified by the in-run fingerprint
     steps:
       - checkout
