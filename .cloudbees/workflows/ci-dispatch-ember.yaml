@@ -1,0 +1,42 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: ci-dispatch-ember
+
+# API/manually triggered build routed to the ember-runner pool
+# (runs-on: [ember]). The `unify` target's ci-dispatch.yaml is the hosted
+# twin; this variant must stay all-`run:` steps — any `uses:` step would
+# classify the whole job CONTAINER mode, which ember-runner cannot serve
+# (no Docker daemon in the microVM). Checkout is therefore a plain
+# git clone of this public repo instead of the checkout action.
+#
+# Comparability caveat (recorded in ci-benchmarks
+# docs/research/2026-09-19-ember-runner-target.md): the hosted twin
+# executes ci/bench.sh inside docker://buildpack-deps on a Tekton pod;
+# this variant executes it natively in a Firecracker microVM. Same
+# platform, same workload, different execution environment — that
+# difference IS the quantity under test.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        type: string
+        default: ''
+      result_url:
+        type: string
+        default: ''
+
+jobs:
+  build:
+    runs-on: [ember]
+    timeout-minutes: 30
+    steps:
+      - name: checkout
+        run: |
+          git clone --depth 1 --branch main https://github.com/swashbuck1r/shelfkeeper .
+          git log -1 --format='checkout %H'
+      - name: build
+        env:
+          CIBENCH_RUN_ID_INPUT: ${{ inputs.run_id }}
+          CIBENCH_RESULT_URL: ${{ inputs.result_url }}
+        run: |
+          CIBENCH_RUN_ID="${CIBENCH_RUN_ID_INPUT}" ./ci/bench.sh
