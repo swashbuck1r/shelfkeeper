@@ -1,0 +1,76 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: fast-smoke
+
+# Smoke test for the Firecracker fast runner pool (runs-on: [fast], edge-runner
+# CBP-63945). Two jobs, one per execution mode:
+#
+# - container: any `uses:` step classifies the whole job CONTAINER mode, so this
+#   one proves a step container runs on the Docker daemon inside the microVM.
+# - native: all-`run:` steps classify the job NATIVE, so this one runs directly
+#   in the guest. It also checks the guest's network confinement, the job form of
+#   edge-runner's images/host/verify-isolation.sh, using only bash's /dev/tcp,
+#   timeout, getent and ip, because the guest image has no curl, ping or
+#   nslookup.
+on:
+  workflow_dispatch:
+
+jobs:
+  container:
+    runs-on: [fast]
+    timeout-minutes: 10
+    steps:
+      - name: hello from a step container
+        uses: docker://alpine:3.20
+        run: |
+          uname -a
+          echo "cpus: $(nproc)"
+          free -m
+          df -h /
+          wget -q -O /dev/null https://api.saas-preprod.beescloud.com && echo "egress to the platform: ok"
+
+  native:
+    runs-on: [fast]
+    timeout-minutes: 10
+    steps:
+      - name: hello from the guest
+        run: |
+          uname -a
+          cat /etc/os-release | head -2
+          echo "cpus: $(nproc)"
+          free -m
+          docker version --format 'docker {{.Server.Version}}'
+      - name: guest network confinement
+        run: |
+          bash <<'EOF'
+          set -uo pipefail
+          failures=0
+          # A dropped packet times out (exit 124). Anything else means something answered.
+          blocked() {
+            local what="$1" host="$2" port="$3"
+            timeout 3 bash -c "exec 3<>/dev/tcp/${host}/${port}" 2>/dev/null
+            if [ $? -eq 124 ]; then echo "✅ blocked: ${what} (${host}:${port})"; else echo "❌ reachable: ${what} (${host}:${port})"; failures=$((failures + 1)); fi
+          }
+          open() {
+            local what="$1" host="$2" port="$3"
+            if timeout 15 bash -c "exec 3<>/dev/tcp/${host}/${port}" 2>/dev/null; then echo "✅ reachable: ${what} (${host}:${port})"; else echo "❌ unreachable: ${what} (${host}:${port})"; failures=$((failures + 1)); fi
+          }
+          dev="$(ip -4 route show default | awk '{for (i = 1; i < NF; i++) if ($i == "dev") print $(i + 1); exit}')"
+          gw="$(ip -4 route show default | awk '{print $3}')"
+          me="$(ip -4 -oneline addr show dev "${dev}" | awk '{print $4}' | cut -d/ -f1)"
+          sibling="$(awk -F. '{printf "%s.%s.%s.%d", $1, $2, $3, $4 + 4}' <<<"${me}")"
+          echo "guest ${me} via ${gw} on ${dev}; sibling slot ${sibling}"
+          echo "-- must not reach"
+          blocked "the host's SSH port" "${gw}" 22
+          blocked "another guest's slot" "${sibling}" 22
+          blocked "the container credential endpoint" 169.254.170.2 80
+          blocked "the link-local DNS resolver" 169.254.169.253 53
+          echo "-- 169.254.169.254 is Firecracker's MMDS inside a guest, not EC2 IMDS (edge-runner review R29)"
+          if timeout 3 bash -c 'exec 3<>/dev/tcp/169.254.169.254/80' 2>/dev/null; then echo "ℹ️ MMDS answers, as expected"; else echo "ℹ️ MMDS did not answer"; fi
+          echo "-- must reach"
+          if getent hosts api.saas-preprod.beescloud.com >/dev/null; then echo "✅ name resolution"; else echo "❌ name resolution"; failures=$((failures + 1)); fi
+          open "the platform" api.saas-preprod.beescloud.com 443
+          open "a public registry" public.ecr.aws 443
+          if docker info >/dev/null 2>&1; then echo "✅ the guest's Docker daemon"; else echo "❌ the guest's Docker daemon"; failures=$((failures + 1)); fi
+          [ "${failures}" -eq 0 ] && echo "✅ confinement holds" || { echo "❌ ${failures} checks failed"; exit 1; }
+          EOF
