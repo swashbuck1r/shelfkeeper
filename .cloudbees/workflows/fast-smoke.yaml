@@ -38,7 +38,8 @@ jobs:
           uname -a
           cat /etc/os-release | head -2
           echo "cpus: $(nproc)"
-          free -m
+          # The guest image has no procps, so no free.
+          grep -E '^(MemTotal|MemAvailable):' /proc/meminfo
           docker version --format 'docker {{.Server.Version}}'
       - name: guest network confinement
         run: |
