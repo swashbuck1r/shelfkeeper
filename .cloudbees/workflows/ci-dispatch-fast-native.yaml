@@ -1,0 +1,40 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: ci-dispatch-fast-native
+
+# API/manually triggered build routed to the Firecracker fast runner pool
+# (runs-on: [fast], edge-runner CBP-63945) in NATIVE mode. Native twin of
+# ci-dispatch-fast.yaml (container mode). This variant must stay all-`run:`
+# steps — any `uses:` step classifies the whole job CONTAINER mode — so the
+# checkout is a plain git clone of this public repo, as in
+# ci-dispatch-ember.yaml. Needs a guest image with git and curl (edge-runner
+# dev-host patch X2); bench.sh fetches its own Go/Node, as in container mode.
+#
+# The guest has a Docker daemon, so bench.sh's docker-build step runs here and
+# skips in container mode; ci-benchmarks compares felt_core (docker-build
+# excluded, D-012.17), not felt_total.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        type: string
+        default: ''
+      result_url:
+        type: string
+        default: ''
+
+jobs:
+  build:
+    runs-on: [fast]
+    timeout-minutes: 30
+    steps:
+      - name: checkout
+        run: |
+          git clone --depth 1 --branch main https://github.com/swashbuck1r/shelfkeeper .
+          git log -1 --format='checkout %H'
+      - name: build
+        env:
+          CIBENCH_RUN_ID_INPUT: ${{ inputs.run_id }}
+          CIBENCH_RESULT_URL: ${{ inputs.result_url }}
+        run: |
+          CIBENCH_RUN_ID="${CIBENCH_RUN_ID_INPUT}" ./ci/bench.sh
