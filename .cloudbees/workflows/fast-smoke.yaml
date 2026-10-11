@@ -27,7 +27,8 @@ jobs:
           echo "cpus: $(nproc)"
           free -m
           df -h /
-          wget -q -O /dev/null https://api.saas-preprod.beescloud.com && echo "egress to the platform: ok"
+          # Any HTTP answer proves egress. The API root itself answers 404.
+          wget -S -O /dev/null https://api.saas-preprod.beescloud.com 2>&1 | grep -q 'HTTP/' && echo "egress to the platform: ok"
 
   native:
     runs-on: [fast]
