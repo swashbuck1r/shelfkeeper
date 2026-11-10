@@ -1,0 +1,32 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: Relay probe
+
+# Proves a Firecracker guest reaches the laptop's gr-all through the host relay
+# (10.201.0.2 → SSH-over-SSM tunnel → laptop). Each step fails when its check
+# fails, because step logs can't upload yet: the job's pass/fail is the result.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: fast-spike
+    steps:
+      - name: relay-gateway
+        uses: docker://buildpack-deps:bookworm-curl
+        run: |
+          code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
+            --resolve localhost.guide-rails.io:8097:10.201.0.2 https://localhost.guide-rails.io:8097/)
+          echo "gateway via relay: $code"; test "$code" = 404
+
+      - name: relay-rustfs
+        uses: docker://buildpack-deps:bookworm-curl
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://10.201.0.2:9000/)
+          echo "rustfs via relay: $code"; test "$code" = 403
+
+      - name: relay-blocks-other-ports
+        uses: docker://buildpack-deps:bookworm-curl
+        run: |
+          if curl -s --max-time 5 http://10.201.0.2:22/; then echo "port 22 reachable: should be blocked"; exit 1; fi
+          echo "port 22 blocked, as expected"
