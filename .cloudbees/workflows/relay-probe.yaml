@@ -9,8 +9,18 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  firecracker:
+    runs-on: [spike-dev]
+    steps:
+      - name: checkout
+        uses: cloudbees-io/checkout@v1
+      - name: hello
+        uses: docker://alpine:3
+        run: |
+          uname -m
+          ls
   probe:
-    runs-on: fast-spike
+    runs-on: spike-dev
     steps:
       - name: relay-gateway
         uses: docker://buildpack-deps:bookworm-curl
